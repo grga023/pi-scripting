@@ -1,18 +1,17 @@
-let dataStore = []; // temporary in-memory store
+let metricsStore = []; // in-memory store (resets on redeploy)
 
 export async function POST(req) {
-  const body = await req.json(); 
-  // body should be { value: 10 } or { value: 42 }
+  const data = await req.json();
 
-  if (!body || typeof body.value !== "number") {
-    return new Response(JSON.stringify({ error: "Invalid data" }), { status: 400 });
+  if (!data || !data.timestamp) {
+    return new Response(JSON.stringify({ error: 'Invalid data' }), { status: 400 });
   }
 
-  dataStore.push(body.value);
+  metricsStore.push(data);
 
-  return new Response(JSON.stringify({ success: true }), { status: 200 });
+  return new Response(JSON.stringify({ success: true }));
 }
 
 export async function GET() {
-  return new Response(JSON.stringify(dataStore), { status: 200 });
+  return new Response(JSON.stringify(metricsStore));
 }
