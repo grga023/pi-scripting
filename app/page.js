@@ -1,64 +1,109 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Chart, LineElement, PointElement, CategoryScale, LinearScale } from "chart.js";
-import zoomPlugin from "chartjs-plugin-zoom";
+import dynamic from "next/dynamic";
 
-Chart.register(LineElement, PointElement, CategoryScale, LinearScale, zoomPlugin);
+let Chart;
 
 export default function Page() {
-  const cpuRef = useRef();
-  const ramRef = useRef();
-  const diskRef = useRef();
-  const consumptionRef = useRef();
+  const cpuRef = useRef(null);
+  const ramRef = useRef(null);
+  const diskRef = useRef(null);
+  const consumptionRef = useRef(null);
 
   let cpuChart, ramChart, diskChart, consumptionChart;
-  let chartLabels = [];
-
-  const initChart = (ctx, datasets, label) =>
-    new Chart(ctx, {
-      type: "line",
-      data: { labels: Array(100).fill(""), datasets },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { labels: { color: "#0f0" } },
-          zoom: { pan: { enabled: true, mode: "x" }, zoom: { wheel: { enabled: true }, mode: "x" } }
-        },
-        scales: {
-          x: { display: false, grid: { color: "#333" } },
-          y: { ticks: { color: "#0f0" }, grid: { color: "#333" }, min: 0, max: 100 }
-        }
-      }
-    });
 
   const initCharts = () => {
-    cpuChart = initChart(cpuRef.current, [
-      { label: "Total CPU", data: Array(100).fill(0), borderColor: "#0ff", fill: true },
-      { label: "Core0", data: Array(100).fill(0), borderColor: "#0f0", fill: false },
-      { label: "Core1", data: Array(100).fill(0), borderColor: "#ff0", fill: false },
-      { label: "Core2", data: Array(100).fill(0), borderColor: "#f0f", fill: false },
-      { label: "Core3", data: Array(100).fill(0), borderColor: "#f00", fill: false }
-    ]);
+    if (!cpuRef.current) return;
 
-    ramChart = initChart(ramRef.current, [
-      { label: "RAM Usage", data: Array(100).fill(0), borderColor: "#ff0", fill: true },
-      { label: "SWAP Usage", data: Array(100).fill(0), borderColor: "#f0f", fill: true }
-    ]);
+    // Dynamically import Chart.js and zoom plugin
+    import("chart.js").then((ChartModule) => {
+      Chart = ChartModule.Chart;
+      const { LineElement, PointElement, CategoryScale, LinearScale } = ChartModule;
+      import("chartjs-plugin-zoom").then((ZoomPlugin) => {
+        Chart.register(LineElement, PointElement, CategoryScale, LinearScale, ZoomPlugin.default);
 
-    diskChart = initChart(diskRef.current, [
-      { label: "Disk Usage", data: Array(100).fill(0), borderColor: "#f00", fill: true }
-    ]);
+        // CPU Chart
+        const ctxCPU = cpuRef.current.getContext("2d");
+        cpuChart = new Chart(ctxCPU, {
+          type: "line",
+          data: {
+            labels: Array(100).fill(""),
+            datasets: [
+              { label: "Total CPU", data: Array(100).fill(0), borderColor: "#0ff", backgroundColor: "rgba(0,255,255,0.2)", fill: true },
+              { label: "Core0", data: Array(100).fill(0), borderColor: "#0f0", fill: false },
+              { label: "Core1", data: Array(100).fill(0), borderColor: "#ff0", fill: false },
+              { label: "Core2", data: Array(100).fill(0), borderColor: "#f0f", fill: false },
+              { label: "Core3", data: Array(100).fill(0), borderColor: "#f00", fill: false }
+            ]
+          },
+          options: chartOptions()
+        });
 
-    consumptionChart = initChart(consumptionRef.current, [
-      { label: "Consumption (W)", data: Array(100).fill(0), borderColor: "#0ff", fill: true }
-    ]);
+        // RAM Chart
+        const ctxRAM = ramRef.current.getContext("2d");
+        ramChart = new Chart(ctxRAM, {
+          type: "line",
+          data: {
+            labels: Array(100).fill(""),
+            datasets: [
+              { label: "RAM Usage (%)", data: Array(100).fill(0), borderColor: "#ff0", backgroundColor: "rgba(255,255,0,0.2)", fill: true },
+              { label: "SWAP Usage (%)", data: Array(100).fill(0), borderColor: "#f0f", backgroundColor: "rgba(255,0,255,0.2)", fill: true }
+            ]
+          },
+          options: chartOptions()
+        });
+
+        // Disk Chart
+        const ctxDisk = diskRef.current.getContext("2d");
+        diskChart = new Chart(ctxDisk, {
+          type: "line",
+          data: {
+            labels: Array(100).fill(""),
+            datasets: [
+              { label: "Disk Usage (%)", data: Array(100).fill(0), borderColor: "#f00", backgroundColor: "rgba(255,0,0,0.2)", fill: true }
+            ]
+          },
+          options: chartOptions()
+        });
+
+        // Consumption Chart
+        const ctxConsumption = consumptionRef.current.getContext("2d");
+        consumptionChart = new Chart(ctxConsumption, {
+          type: "line",
+          data: {
+            labels: Array(100).fill(""),
+            datasets: [
+              { label: "Consumption (W)", data: Array(100).fill(0), borderColor: "#0ff", backgroundColor: "rgba(0,255,255,0.2)", fill: true }
+            ]
+          },
+          options: chartOptions()
+        });
+
+        fetchMetrics();
+        setInterval(fetchMetrics, 10000);
+      });
+    });
   };
 
-  const updateCharts = (rows) => {
-    chartLabels = rows.map(r => r.timestamp);
+  const chartOptions = () => ({
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: "#0f0" } },
+      zoom: { pan: { enabled: true, mode: "x" }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: "x" } }
+    },
+    scales: {
+      x: { display: false, grid: { color: "#333" } },
+      y: { ticks: { color: "#0f0" }, grid: { color: "#333" }, min: 0, max: 100 }
+    }
+  });
 
-    cpuChart.data.labels = chartLabels;
+  const updateCharts = (rows) => {
+    if (!rows || rows.length === 0) return;
+
+    const labels = rows.map(r => r.timestamp);
+
+    cpuChart.data.labels = labels;
     cpuChart.data.datasets[0].data = rows.map(r => r.cpu.total);
     cpuChart.data.datasets[1].data = rows.map(r => r.cpu.core0);
     cpuChart.data.datasets[2].data = rows.map(r => r.cpu.core1);
@@ -66,16 +111,16 @@ export default function Page() {
     cpuChart.data.datasets[4].data = rows.map(r => r.cpu.core3);
     cpuChart.update();
 
-    ramChart.data.labels = chartLabels;
+    ramChart.data.labels = labels;
     ramChart.data.datasets[0].data = rows.map(r => Math.round((r.ram.used / r.ram.total) * 100));
     ramChart.data.datasets[1].data = rows.map(r => r.swap ? Math.round((r.swap.used / r.swap.total) * 100) : 0);
     ramChart.update();
 
-    diskChart.data.labels = chartLabels;
+    diskChart.data.labels = labels;
     diskChart.data.datasets[0].data = rows.map(r => Math.round((r.disk.used / r.disk.total) * 100));
     diskChart.update();
 
-    consumptionChart.data.labels = chartLabels;
+    consumptionChart.data.labels = labels;
     consumptionChart.data.datasets[0].data = rows.map(r => r.consumption.used);
     consumptionChart.data.datasets[0].label = `Consumption (W)`;
     consumptionChart.options.scales.y.max = Math.max(...rows.map(r => r.consumption.total));
@@ -83,16 +128,17 @@ export default function Page() {
   };
 
   const fetchMetrics = async () => {
-    const resp = await fetch("/api/metrics");
-    const data = await resp.json();
-    updateCharts(data);
+    try {
+      const resp = await fetch("/api/metrics");
+      const data = await resp.json();
+      updateCharts(data);
+    } catch (err) {
+      console.error("Failed to fetch metrics:", err);
+    }
   };
 
   useEffect(() => {
     initCharts();
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
