@@ -1,17 +1,21 @@
-let metricsStore = []; // in-memory store (resets on redeploy)
+// app/api/metrics/route.js
+let metricsData = []; // In-memory store, resets on redeploy
 
-export async function POST(req) {
-  const data = await req.json();
+export async function POST(request) {
+  try {
+    const data = await request.json();
+    metricsData.push(data);
 
-  if (!data || !data.timestamp) {
-    return new Response(JSON.stringify({ error: 'Invalid data' }), { status: 400 });
+    // Keep only last 100 entries
+    if (metricsData.length > 100) metricsData.shift();
+
+    return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 400 });
   }
-
-  metricsStore.push(data);
-
-  return new Response(JSON.stringify({ success: true }));
 }
 
 export async function GET() {
-  return new Response(JSON.stringify(metricsStore));
+  // Return all stored metrics
+  return new Response(JSON.stringify(metricsData), { status: 200 });
 }
