@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -13,14 +13,17 @@ import {
 ChartJS.register(LineElement, PointElement, CategoryScale, LinearScale);
 
 export default function Page() {
-  const [text, setText] = useState("");
+  const [values, setValues] = useState([]);
+  const [input, setInput] = useState("");
 
-  const values = text
-    .split(",")
-    .map(v => Number(v.trim()))
-    .filter(v => !isNaN(v));
+  // fetch stored data from API
+  useEffect(() => {
+    fetch("/api/data")
+      .then(res => res.json())
+      .then(setValues);
+  }, []);
 
-  const data = {
+  const chartData = {
     labels: values.map((_, i) => i + 1),
     datasets: [
       {
@@ -30,20 +33,37 @@ export default function Page() {
     ]
   };
 
+  const pushData = () => {
+    const num = Number(input);
+    if (!isNaN(num)) {
+      fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: num })
+      })
+        .then(res => res.json())
+        .then(() => {
+          setValues([...values, num]);
+          setInput("");
+        });
+    }
+  };
+
   return (
     <main style={{ padding: 40 }}>
       <h1>Vercel Graph Page</h1>
 
-      <p>Enter numbers separated by commas:</p>
+      <div>
+        <input
+          type="number"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Enter a number"
+        />
+        <button onClick={pushData}>Add Data</button>
+      </div>
 
-      <textarea
-        rows={4}
-        style={{ width: "100%" }}
-        placeholder="10,20,30,40"
-        onChange={e => setText(e.target.value)}
-      />
-
-      <Line data={data} />
+      <Line data={chartData} />
     </main>
   );
 }
