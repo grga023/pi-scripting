@@ -1,5 +1,4 @@
-// app/api/metrics/route.js
-let metricsData = []; // In-memory store, resets on redeploy
+let metricsData = []; // in-memory storage
 
 export async function POST(request) {
   try {
@@ -16,6 +15,5 @@ export async function POST(request) {
 }
 
 export async function GET() {
-  // Return all stored metrics
   return new Response(JSON.stringify(metricsData), { status: 200 });
 }
